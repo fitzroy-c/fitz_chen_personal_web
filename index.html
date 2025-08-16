@@ -673,20 +673,20 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Gallery数据
             const galleryData = [
-                { url: '../resources/imgs/img1.jpg', title: 'Portfolio Image 1', description: 'This image is the first in my portfolio, showcasing a creative project.' },
-                { url: '../resources/imgs/img2.jpg', title: 'Portfolio Image 2', description: 'The second image, a detailed shot of a digital artwork.' },
-                { url: '../resources/imgs/img3.jpg', title: 'Portfolio Image 3', description: 'A photograph taken during my travels, reflecting a unique perspective.' },
-                { url: '../resources/imgs/img4.jpg', title: 'Portfolio Image 4', description: 'Another piece of digital work, focusing on abstract design.' },
-                { url: '../resources/imgs/img5.jpg', title: 'Portfolio Image 5', description: 'This photo captures a natural landscape.' },
-                { url: '../resources/imgs/img6.jpg', title: 'Portfolio Image 6', description: 'A screenshot from a web application I developed.' },
-                { url: '../resources/imgs/img7.jpg', title: 'Portfolio Image 7', description: 'A conceptual design for a future project.' }
+                { url: './resources/imgs/img1.jpg', title: 'Portfolio Image 1', description: '' },
+                { url: './resources/imgs/img2.jpg', title: 'Portfolio Image 2', description: '' },
+                { url: './resources/imgs/img3.jpg', title: 'Portfolio Image 3', description: '' },
+                { url: './resources/imgs/img4.jpg', title: 'Portfolio Image 4', description: '' },
+                { url: './resources/imgs/img5.jpg', title: 'Portfolio Image 5', description: '' },
+                { url: './resources/imgs/img6.jpg', title: 'Portfolio Image 6', description: '' },
+                { url: './resources/imgs/img7.jpg', title: 'Portfolio Image 7', description: '' }
             ];
 
             // 图片错误处理函数
             function handleImageError(img, index) {
                 img.onerror = function() {
                     console.error(`Image not found: ${img.src}`);
-                    const basePath = `../resources/imgs/img${index + 1}`;
+                    const basePath = `./resources/imgs/img${index + 1}`;
                     const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
                     let extensionIndex = 0;
