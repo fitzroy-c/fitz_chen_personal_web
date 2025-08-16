@@ -98,7 +98,7 @@
             width: 100%;
         }
 
-        /* Gallery Section */
+        /* Gallery Section - 优化后的图片显示方式 */
         .gallery {
             height: 100vh;
             display: flex;
@@ -106,6 +106,7 @@
             background: var(--bg-dark);
             position: relative;
             padding-top: 80px;
+            overflow: hidden;
         }
 
         .gallery-header {
@@ -139,12 +140,19 @@
             overflow: hidden;
         }
 
-        .gallery-main {
-            flex: 1;
+        /* 图片轨道容器 - 用于平滑切换 */
+        .gallery-track {
+            display: flex;
+            height: 100%;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .gallery-slide {
+            min-width: 100%;
+            height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            position: relative;
             padding: 2rem;
         }
 
@@ -258,6 +266,33 @@
         .gallery-info.show {
             transform: translateY(0);
             opacity: 1;
+        }
+
+        /* 新增指示器导航 */
+        .gallery-indicators {
+            position: absolute;
+            top: 50%;
+            left: 2rem;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            z-index: 10;
+        }
+
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .indicator.active {
+            background-color: white;
+            transform: scale(1.3);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
         }
 
         /* Common Styles */
@@ -502,6 +537,10 @@
                 right: 1rem;
             }
 
+            .gallery-indicators {
+                display: none;
+            }
+
             .about-content {
                 grid-template-columns: 1fr;
                 text-align: center;
@@ -535,10 +574,18 @@
         </div>
 
         <div class="gallery-container">
-            <div class="gallery-main">
-                <button class="gallery-controls prev">❮</button>
-                <img id="mainImage" class="gallery-image" src="resources/imgs/img1.jpg" alt="Portfolio Image">
-                <button class="gallery-controls next">❯</button>
+            <!-- 图片轨道容器 - 用于实现平滑切换效果 -->
+            <div class="gallery-track" id="galleryTrack">
+                <!-- 图片幻灯片将由JS动态生成 -->
+            </div>
+
+            <!-- 左右导航按钮 -->
+            <button class="gallery-controls prev">❮</button>
+            <button class="gallery-controls next">❯</button>
+
+            <!-- 指示器导航 -->
+            <div class="gallery-indicators" id="galleryIndicators">
+                <!-- 指示器将由JS动态生成 -->
             </div>
 
             <div class="gallery-info" id="imageInfo">
@@ -547,7 +594,8 @@
             </div>
 
             <div class="gallery-thumbnails" id="thumbnails">
-                </div>
+                <!-- 缩略图将由JS动态生成 -->
+            </div>
         </div>
     </section>
 
@@ -671,18 +719,30 @@
     </section>
 
     <script>
-        // 防止所有内部事件冒泡到可能触发导航的元素
         document.addEventListener('DOMContentLoaded', function() {
             // Gallery数据
             const galleryData = [
-                { url: './resources/imgs/img1.jpg', title: 'Portfolio Image 1', description: '' },
-                { url: './resources/imgs/img2.jpg', title: 'Portfolio Image 2', description: '' },
-                { url: './resources/imgs/img3.jpg', title: 'Portfolio Image 3', description: '' },
-                { url: './resources/imgs/img4.jpg', title: 'Portfolio Image 4', description: '' },
-                { url: './resources/imgs/img5.jpg', title: 'Portfolio Image 5', description: '' },
-                { url: './resources/imgs/img6.jpg', title: 'Portfolio Image 6', description: '' },
-                { url: './resources/imgs/img7.jpg', title: 'Portfolio Image 7', description: '' }
+                { url: './resources/imgs/img1.jpg', title: 'Portfolio Image 1', description: 'A breathtaking view of mountain peaks at sunset' },
+                { url: './resources/imgs/img2.jpg', title: 'Portfolio Image 2', description: 'Urban architecture captured from unique perspective' },
+                { url: './resources/imgs/img3.jpg', title: 'Portfolio Image 3', description: 'Abstract patterns found in natural formations' },
+                { url: './resources/imgs/img4.jpg', title: 'Portfolio Image 4', description: 'Coastal landscape during golden hour' },
+                { url: './resources/imgs/img5.jpg', title: 'Portfolio Image 5', description: 'Minimalist composition with strong lines' },
+                { url: './resources/imgs/img6.jpg', title: 'Portfolio Image 6', description: 'Exploring light and shadow in urban environments' },
+                { url: './resources/imgs/img7.jpg', title: 'Portfolio Image 7', description: 'Natural textures and patterns in close-up' }
             ];
+
+            // 获取DOM元素
+            const galleryTrack = document.getElementById('galleryTrack');
+            const thumbnailsContainer = document.getElementById('thumbnails');
+            const indicatorsContainer = document.getElementById('galleryIndicators');
+            const prevButton = document.querySelector('.prev');
+            const nextButton = document.querySelector('.next');
+            const imageInfo = document.getElementById('imageInfo');
+            const imageTitle = document.getElementById('imageTitle');
+            const imageDesc = document.getElementById('imageDesc');
+
+            let currentIndex = 0;
+            const totalImages = galleryData.length;
 
             // 图片错误处理函数
             function handleImageError(img, index) {
@@ -707,121 +767,164 @@
                 };
             }
 
-            let currentImageIndex = 0;
-
             // 初始化画廊
             function initGallery() {
-                const gallerySection = document.getElementById('gallery');
-                const thumbnailsContainer = document.getElementById('thumbnails');
-                const prevButton = document.querySelector('.prev');
-                const nextButton = document.querySelector('.next');
-                const mainImage = document.getElementById('mainImage');
-
-                // 在捕获阶段阻止所有gallery内部事件冒泡
-                gallerySection.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                }, true);
-
-                // 生成缩略图并添加点击事件
+                // 创建图片幻灯片、缩略图和指示器
                 galleryData.forEach((item, index) => {
+                    // 创建幻灯片
+                    const slide = document.createElement('div');
+                    slide.className = 'gallery-slide';
+
+                    const img = document.createElement('img');
+                    img.src = item.url;
+                    img.alt = item.title;
+                    img.className = 'gallery-image';
+                    handleImageError(img, index);
+
+                    slide.appendChild(img);
+                    galleryTrack.appendChild(slide);
+
+                    // 创建缩略图
                     const thumbnail = document.createElement('img');
                     thumbnail.src = item.url;
                     thumbnail.alt = item.title;
-                    thumbnail.className = 'thumbnail';
-                    if (index === 0) thumbnail.classList.add('active');
-
+                    thumbnail.className = `thumbnail ${index === 0 ? 'active' : ''}`;
                     handleImageError(thumbnail, index);
 
                     thumbnail.addEventListener('click', function(e) {
-                        // 彻底阻止所有默认行为和冒泡
                         e.preventDefault();
                         e.stopPropagation();
-                        e.stopImmediatePropagation();
-                        showImage(index);
-                    }, true);
+                        goToSlide(index);
+                    });
 
                     thumbnailsContainer.appendChild(thumbnail);
+
+                    // 创建指示器
+                    const indicator = document.createElement('div');
+                    indicator.className = `indicator ${index === 0 ? 'active' : ''}`;
+                    indicator.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goToSlide(index);
+                    });
+
+                    indicatorsContainer.appendChild(indicator);
                 });
 
-                // 为导航按钮添加事件监听
+                // 导航按钮事件
                 prevButton.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    e.stopImmediatePropagation();
-                    changeImage(-1);
-                }, true);
+                    prevSlide();
+                });
 
                 nextButton.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    e.stopImmediatePropagation();
-                    changeImage(1);
-                }, true);
-
-                // 主图片点击也阻止冒泡
-                mainImage.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                }, true);
-
-                showImage(0);
-            }
-
-            // 显示特定图片
-            function showImage(index) {
-                currentImageIndex = index;
-                const mainImage = document.getElementById('mainImage');
-                const imageTitle = document.getElementById('imageTitle');
-                const imageDesc = document.getElementById('imageDesc');
-                const imageInfo = document.getElementById('imageInfo');
-
-                mainImage.src = galleryData[index].url;
-                mainImage.alt = galleryData[index].title;
-
-                handleImageError(mainImage, index);
-
-                imageTitle.textContent = galleryData[index].title;
-                imageDesc.textContent = galleryData[index].description;
-
-                imageInfo.classList.add('show');
-                setTimeout(() => {
-                    imageInfo.classList.remove('show');
-                }, 3000);
-
-                document.querySelectorAll('.thumbnail').forEach((thumb, i) => {
-                    thumb.classList.toggle('active', i === index);
+                    nextSlide();
                 });
 
-                const activeThumbnail = document.querySelectorAll('.thumbnail')[index];
+                // 键盘导航
+                document.addEventListener('keydown', function(e) {
+                    const gallerySection = document.getElementById('gallery');
+                    const rect = gallerySection.getBoundingClientRect();
+                    const isGalleryVisible = rect.top <= window.innerHeight && rect.bottom >= 0;
+
+                    if (isGalleryVisible) {
+                        if (e.key === 'ArrowLeft') {
+                            e.preventDefault();
+                            prevSlide();
+                        } else if (e.key === 'ArrowRight') {
+                            e.preventDefault();
+                            nextSlide();
+                        }
+                    }
+                });
+
+                // 触摸滑动支持
+                let touchStartX = 0;
+                let touchEndX = 0;
+
+                galleryTrack.addEventListener('touchstart', (e) => {
+                    touchStartX = e.changedTouches[0].screenX;
+                }, false);
+
+                galleryTrack.addEventListener('touchend', (e) => {
+                    touchEndX = e.changedTouches[0].screenX;
+                    handleSwipe();
+                }, false);
+
+                function handleSwipe() {
+                    const swipeThreshold = 50;
+                    if (touchEndX - touchStartX > swipeThreshold) {
+                        prevSlide(); // 向右滑动，显示上一张
+                    } else if (touchStartX - touchEndX > swipeThreshold) {
+                        nextSlide(); // 向左滑动，显示下一张
+                    }
+                }
+
+                // 初始显示第一张图片信息
+                updateImageInfo(0);
+            }
+
+            // 切换到指定幻灯片
+            function goToSlide(index) {
+                if (index < 0 || index >= totalImages) return;
+
+                currentIndex = index;
+                updateGallery();
+                updateImageInfo(index);
+
+                // 滚动缩略图到可见位置
+                const thumbnails = document.querySelectorAll('.thumbnail');
+                const activeThumbnail = thumbnails[index];
                 if (activeThumbnail) {
                     activeThumbnail.scrollIntoView({ behavior: 'smooth', inline: 'center' });
                 }
             }
 
-            // 切换图片
-            function changeImage(direction) {
-                const newIndex = (currentImageIndex + direction + galleryData.length) % galleryData.length;
-                showImage(newIndex);
+            // 上一张
+            function prevSlide() {
+                currentIndex = (currentIndex - 1 + totalImages) % totalImages;
+                updateGallery();
+                updateImageInfo(currentIndex);
             }
 
-            // 键盘导航
-            document.addEventListener('keydown', function(e) {
-                const gallerySection = document.getElementById('gallery');
-                const rect = gallerySection.getBoundingClientRect();
-                const isGalleryVisible = rect.top <= window.innerHeight && rect.bottom >= 0;
+            // 下一张
+            function nextSlide() {
+                currentIndex = (currentIndex + 1) % totalImages;
+                updateGallery();
+                updateImageInfo(currentIndex);
+            }
 
-                if (isGalleryVisible) {
-                    if (e.key === 'ArrowLeft') {
-                        e.preventDefault();
-                        changeImage(-1);
-                    }
-                    if (e.key === 'ArrowRight') {
-                        e.preventDefault();
-                        changeImage(1);
-                    }
-                }
-            });
+            // 更新画廊显示
+            function updateGallery() {
+                // 移动轨道实现滑动效果
+                galleryTrack.style.transform = `translateX(-${currentIndex * 100}%)`;
+
+                // 更新缩略图状态
+                document.querySelectorAll('.thumbnail').forEach((thumb, index) => {
+                    thumb.classList.toggle('active', index === currentIndex);
+                });
+
+                // 更新指示器状态
+                document.querySelectorAll('.indicator').forEach((indicator, index) => {
+                    indicator.classList.toggle('active', index === currentIndex);
+                });
+            }
+
+            // 更新图片信息显示
+            function updateImageInfo(index) {
+                imageTitle.textContent = galleryData[index].title;
+                imageDesc.textContent = galleryData[index].description;
+
+                // 显示信息然后隐藏
+                imageInfo.classList.add('show');
+                clearTimeout(window.infoTimeout);
+                window.infoTimeout = setTimeout(() => {
+                    imageInfo.classList.remove('show');
+                }, 3000);
+            }
 
             // 导航栏滚动效果
             window.addEventListener('scroll', function() {
@@ -836,7 +939,6 @@
             // 导航链接平滑滚动
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
                 anchor.addEventListener('click', function(e) {
-                    // 只处理导航链接，不影响其他链接
                     if (this.closest('.nav-links')) {
                         e.preventDefault();
                         const targetId = this.getAttribute('href');
@@ -869,17 +971,23 @@
                 observer.observe(el);
             });
 
-            // 初始化并确保页面加载时显示gallery
+            // 初始化画廊
             initGallery();
+
+            // 确保页面加载时显示gallery
             if (!window.location.hash) {
                 window.location.hash = '#gallery';
             }
 
-            // 防止全局点击事件影响
-            document.body.addEventListener('click', function(e) {
-                const gallerySection = document.getElementById('gallery');
+            // 防止点击画廊时跳转到其他部分
+            const gallerySection = document.getElementById('gallery');
+            gallerySection.addEventListener('click', function(e) {
+                // 检查是否点击了画廊内部元素
                 if (gallerySection.contains(e.target)) {
-                    e.stopPropagation();
+                    // 确保URL哈希保持在gallery
+                    if (window.location.hash !== '#gallery') {
+                        history.replaceState(null, null, '#gallery');
+                    }
                 }
             }, true);
         });
